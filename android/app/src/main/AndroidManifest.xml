@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- required="false" on both so the SAME apk installs and runs fine
+         on a regular phone/tablet (touchscreen, no leanback) AND on an
+         Android TV (leanback, no touchscreen) -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/tv_banner"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.TalkingClock"
+        android:hardwareAccelerated="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
+            android:screenOrientation="unspecified"
+            android:theme="@style/Theme.TalkingClock">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <!-- shows up as a normal app icon on phones/tablets -->
+                <category android:name="android.intent.category.LAUNCHER" />
+                <!-- shows up on the Android TV home screen launcher -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

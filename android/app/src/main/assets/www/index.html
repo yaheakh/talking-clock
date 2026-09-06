@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0612">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Talking Clock</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Cairo:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="theme-aurora intensity-strong">
+
+  <!-- Aurora animated background blobs (only visible in theme-aurora) -->
+  <div class="aurora-bg" aria-hidden="true">
+    <div class="blob blob-a"></div>
+    <div class="blob blob-b"></div>
+    <div class="blob blob-c"></div>
+  </div>
+
+  <!-- Full-screen pulse flash overlay (flashes briefly on any announcement) -->
+  <div class="pulse-flash" id="pulseFlash" aria-hidden="true"></div>
+
+  <!-- Corner controls, subtle until hovered. Just Settings + a Fullscreen
+       toggle — no minimize/maximize/close, since this runs as a normal
+       browser tab / installed PWA, not an Electron window. -->
+  <div class="corner-controls">
+    <button id="gear" data-i18n-title="tt_settings" title="Settings">⚙</button>
+    <button id="fullscreenBtn" data-i18n-title="tt_fullscreen" title="Toggle fullscreen">⛶</button>
+  </div>
+
+  <!-- ============ CLOCK VIEW (always full screen) ============ -->
+  <main id="clockView" class="clock-stage">
+    <div class="reminders-column" id="remindersPanel">
+      <div class="reminders-card">
+        <div class="reminders-header">
+          <span>📅</span>
+          <strong data-i18n="reminders_title">Today's Reminders</strong>
+          <button class="rem-quick-add" id="quickAddReminderBtn" data-i18n-title="tt_add_reminder" title="Add a reminder" aria-label="Add a reminder">+</button>
+        </div>
+        <ul class="reminders-list" id="reminders-list"></ul>
+      </div>
+    </div>
+
+    <div class="stage-divider" id="stageDivider">
+      <button class="divider-handle" id="dividerHandle" data-i18n-title="tt_toggle_reminders" title="Hide/show the reminders list" aria-label="Toggle reminders panel">
+        <span id="dividerArrow">‹</span>
+      </button>
+    </div>
+
+    <div class="clock-column">
+      <div class="time" id="time">--:--:--</div>
+      <div class="time-date-divider" id="timeDateDivider" aria-hidden="true"></div>
+
+      <div class="below-time-row" id="belowTimeRow">
+        <div class="holiday-calendar" id="holidayCalendar">
+          <div class="date" id="mcHeader">-</div>
+          <div class="week-strip" id="weekStrip"></div>
+          <div class="holiday-line" id="holidayLine"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Big attention banner shown when a custom reminder fires -->
+  <div class="reminder-banner" id="reminderBanner">
+    <div class="reminder-banner-icon">🔔</div>
+    <div class="reminder-banner-title" id="reminderBannerTitle">Reminder</div>
+    <div class="reminder-banner-hint" data-i18n="banner_hint">Click anywhere or press Esc to dismiss</div>
+  </div>
+
+  <!-- ============ SETTINGS (centered overlay panel over the fullscreen clock) ============ -->
+  <div id="settingsView" class="settings-overlay hidden">
+    <div class="settings-panel">
+
+      <div class="settings-panel-header">
+        <h1 data-i18n="settings_title">Settings</h1>
+        <button id="settingsCloseBtn" data-i18n-title="tt_back_to_clock" title="Back to clock">✕</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="reminders" data-i18n="tab_reminders">Reminders</button>
+        <button class="tab-btn" data-tab="timeReminder" data-i18n="tab_time_reminder">Time Reminder</button>
+        <button class="tab-btn" data-tab="tts" data-i18n="tab_voice">Voice</button>
+        <button class="tab-btn" data-tab="clock" data-i18n="tab_clock">Clock &amp; Display</button>
+        <button class="tab-btn" data-tab="others" data-i18n="tab_others">Others</button>
+      </div>
+
+      <div class="panel">
+
+        <!-- Custom Reminders -->
+        <section id="tab-reminders" class="tab-content active">
+          <div id="remindersContainer"></div>
+          <button class="btn primary" id="addReminderBtn" data-i18n="btn_add_reminder">+ Add Reminder</button>
+        </section>
+
+        <!-- Time Reminder -->
+        <section id="tab-timeReminder" class="tab-content">
+          <label class="row">
+            <span class="toggle"><input type="checkbox" id="tr-enable"><span class="slider"></span></span>
+            <span data-i18n="enable">Enable</span>
+          </label>
+
+          <h3 data-i18n="announce_interval">Announce Interval</h3>
+          <div class="interval-input-row">
+            <input type="number" id="intervalMinutesInput" min="1" max="1440" step="1">
+            <span data-i18n="minutes">minutes</span>
+          </div>
+          <div class="hint" data-i18n="interval_hint">Type any number of minutes (e.g. 10, 45, 90).</div>
+
+          <h3 data-i18n="actions">Actions</h3>
+          <label class="check-row"><input type="checkbox" id="tr-voice"> <span data-i18n="voice_announcement">Voice Announcement</span></label>
+          <label class="check-row"><input type="checkbox" id="tr-notif"> <span data-i18n="system_notification">System Notification</span></label>
+
+          <h3 data-i18n="dnd">Do Not Disturb</h3>
+          <label class="check-row">
+            <input type="checkbox" id="tr-dnd-locked"> <span data-i18n="dnd_locked">When the system is locked</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" id="tr-dnd-fullscreen"> <span data-i18n="dnd_fullscreen">When another app is in fullscreen</span>
+            <div class="hint" data-i18n="reserved_future">Reserved for a future update</div>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" id="tr-dnd-media"> <span data-i18n="dnd_media">When playing audio/video</span>
+            <div class="hint" data-i18n="reserved_future">Reserved for a future update</div>
+          </label>
+        </section>
+
+        <!-- Text to Speech -->
+        <section id="tab-tts" class="tab-content">
+          <h3 data-i18n="voice_engine">Voice Engine</h3>
+          <label class="radio-row"><input type="radio" name="ttsEngine" value="system" id="tts-engine-system"> <span data-i18n="voice_system">System voice (offline, free)</span></label>
+          <label class="radio-row"><input type="radio" name="ttsEngine" value="elevenlabs" id="tts-engine-el"> <span data-i18n="voice_elevenlabs">ElevenLabs (clearer, needs internet)</span></label>
+
+          <div id="systemVoiceBlock">
+            <h3 data-i18n="system_voice">System Voice</h3>
+            <select id="voiceSelect"></select>
+            <div class="hint" id="voiceHint"></div>
+
+            <h3 data-i18n="rate">Rate</h3>
+            <input type="range" id="ttsRate" min="0.5" max="1.8" step="0.05">
+            <h3 data-i18n="volume">Volume</h3>
+            <input type="range" id="ttsVolume" min="0" max="1" step="0.05">
+          </div>
+
+          <div id="elevenLabsBlock">
+            <h3 data-i18n="el_api_key">ElevenLabs API Key</h3>
+            <input type="password" id="elApiKey" placeholder="xi-api-key">
+            <h3 data-i18n="el_voice_id">Voice ID</h3>
+            <input type="text" id="elVoiceId" placeholder="e.g. 21m00Tcm4TlvDq8ikWAM">
+            <h3 data-i18n="el_model">Model</h3>
+            <select id="elModel">
+              <option value="eleven_multilingual_v2" data-i18n="el_model_multi">eleven_multilingual_v2 (supports Arabic)</option>
+              <option value="eleven_turbo_v2_5" data-i18n="el_model_turbo">eleven_turbo_v2_5 (fast, multilingual)</option>
+              <option value="eleven_monolingual_v1" data-i18n="el_model_mono">eleven_monolingual_v1 (English only)</option>
+            </select>
+            <div class="hint" data-i18n="el_hint">Get an API key and voice ID from elevenlabs.io — billed by ElevenLabs, not by this app.</div>
+          </div>
+
+          <div class="test-row">
+            <input type="text" id="testText" data-i18n-placeholder="test_voice_placeholder" placeholder="Type text to test the voice...">
+            <button class="btn" id="testVoiceBtn" data-i18n="btn_test_voice">Test Voice</button>
+          </div>
+          <div class="hint" id="ttsTestStatus"></div>
+        </section>
+
+        <!-- Clock & Display -->
+        <section id="tab-clock" class="tab-content">
+          <h3 data-i18n="language">Language</h3>
+          <label class="radio-row"><input type="radio" name="appLanguage" value="en" id="lang-en"> <span data-i18n="lang_en">English</span></label>
+          <label class="radio-row"><input type="radio" name="appLanguage" value="ar" id="lang-ar"> <span data-i18n="lang_ar">العربية (Arabic)</span></label>
+
+          <h3 data-i18n="color_theme">Color Theme</h3>
+          <div class="theme-grid" id="themeGrid">
+            <label class="theme-card" data-theme="aurora">
+              <input type="radio" name="theme" value="aurora">
+              <span class="swatch swatch-aurora"></span>
+              <span data-i18n="theme_aurora">Aurora</span>
+            </label>
+            <label class="theme-card" data-theme="cyan">
+              <input type="radio" name="theme" value="cyan">
+              <span class="swatch swatch-cyan"></span>
+              <span data-i18n="theme_cyan">Neon Cyan</span>
+            </label>
+            <label class="theme-card" data-theme="amber">
+              <input type="radio" name="theme" value="amber">
+              <span class="swatch swatch-amber"></span>
+              <span data-i18n="theme_amber">Amber Night</span>
+            </label>
+            <label class="theme-card" data-theme="minimal">
+              <input type="radio" name="theme" value="minimal">
+              <span class="swatch swatch-minimal"></span>
+              <span data-i18n="theme_minimal">Minimal Contrast</span>
+            </label>
+          </div>
+
+          <h3 data-i18n="clock_type">Clock Type</h3>
+          <label class="radio-row"><input type="radio" name="clockType" value="digital" id="clock-digital"> <span data-i18n="clock_digital">Digital Clock</span></label>
+          <label class="radio-row"><input type="radio" name="clockType" value="analog" id="clock-analog" disabled> <span data-i18n="clock_analog">Analog Clock (coming soon)</span></label>
+
+          <h3 data-i18n="display">Display</h3>
+          <label class="check-row"><input type="checkbox" id="clock-seconds"> <span data-i18n="display_seconds">Display Seconds</span></label>
+          <label class="check-row"><input type="checkbox" id="clock-date"> <span data-i18n="display_date">Display Date &amp; Calendar</span></label>
+          <label class="check-row"><input type="checkbox" id="clock-reminders"> <span data-i18n="display_reminders">Display Today's Next Reminders</span></label>
+          <label class="check-row"><input type="checkbox" id="clock-holidays"> <span data-i18n="display_holidays">Display Holiday Calendar (Jordan)</span></label>
+
+          <h3 data-i18n="text_size">Text Size</h3>
+          <div id="sizeOptions" class="radio-list"></div>
+
+          <h3 data-i18n="hour_format">Hour Format</h3>
+          <label class="radio-row"><input type="radio" name="hourFormat" value="12" id="hour-12"> <span data-i18n="hour_12">12-hour</span></label>
+          <label class="radio-row"><input type="radio" name="hourFormat" value="24" id="hour-24"> <span data-i18n="hour_24">24-hour</span></label>
+        </section>
+
+        <!-- Others -->
+        <section id="tab-others" class="tab-content">
+          <label class="row">
+            <span class="toggle"><input type="checkbox" id="others-mute"><span class="slider"></span></span>
+            <span data-i18n="mute_all">Mute all notifications and voices</span>
+          </label>
+
+          <label class="row" style="margin-top:14px;">
+            <span class="toggle"><input type="checkbox" id="others-flash"><span class="slider"></span></span>
+            <span data-i18n="show_banner">Show big attention banner when a reminder fires</span>
+          </label>
+
+          <label class="row" style="margin-top:14px;">
+            <span class="toggle"><input type="checkbox" id="others-wakelock"><span class="slider"></span></span>
+            <span data-i18n="keep_awake">Keep the screen awake while this is open</span>
+          </label>
+
+          <h3 data-i18n="pulse_intensity">Attention Pulse Intensity</h3>
+          <div class="hint" data-i18n="pulse_intensity_hint">How strongly the screen pulses/flashes when a reminder or time announcement fires — useful if you're focused on a different monitor.</div>
+          <div id="pulseOptions" class="radio-list"></div>
+          <button class="btn" id="testPulseBtn" style="margin-top:10px;" data-i18n="btn_test_pulse">Test Pulse</button>
+
+          <h3 data-i18n="keyboard_shortcuts">Keyboard Shortcuts</h3>
+          <div class="hint" data-i18n="shortcut_time">Ctrl/Cmd + Alt + T — Announce the current time</div>
+          <div class="hint" data-i18n="shortcut_settings">Ctrl/Cmd + Alt + S — Open/close Settings</div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit reminder modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h2 id="modalTitle" data-i18n="modal_add_title">Add Reminder</h2>
+      <label data-i18n="title_label">Title</label>
+      <input type="text" id="m-title" data-i18n-placeholder="title_placeholder" placeholder="e.g. Team meeting">
+      <div class="field-error" id="m-title-error" data-i18n="title_error">Please enter a title.</div>
+      <label data-i18n="time_label">Time</label>
+      <input type="time" id="m-time">
+      <div class="field-error" id="m-time-error" data-i18n="time_error">Please pick a time.</div>
+      <label data-i18n="repeat_on">Repeat on</label>
+      <div class="days-row" id="m-days">
+        <label><input type="checkbox" value="0"> <span data-i18n="day_sun">Sun</span></label>
+        <label><input type="checkbox" value="1"> <span data-i18n="day_mon">Mon</span></label>
+        <label><input type="checkbox" value="2"> <span data-i18n="day_tue">Tue</span></label>
+        <label><input type="checkbox" value="3"> <span data-i18n="day_wed">Wed</span></label>
+        <label><input type="checkbox" value="4"> <span data-i18n="day_thu">Thu</span></label>
+        <label><input type="checkbox" value="5"> <span data-i18n="day_fri">Fri</span></label>
+        <label><input type="checkbox" value="6"> <span data-i18n="day_sat">Sat</span></label>
+      </div>
+      <label class="check-row"><input type="checkbox" id="m-enabled" checked> <span data-i18n="enable">Enable</span></label>
+
+      <div class="advance-notice-block">
+        <label class="row" style="margin-top:12px;">
+          <span class="toggle"><input type="checkbox" id="m-advance-enabled"><span class="slider"></span></span>
+          <span data-i18n="notify_before">Notify me a few minutes before</span>
+        </label>
+        <div class="interval-input-row" id="m-advance-minutes-row" style="margin-top:8px; display:none;">
+          <input type="number" id="m-advance-minutes" min="1" max="180" step="1" value="5">
+          <span data-i18n="minutes_before">minutes before</span>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" id="m-cancel" data-i18n="cancel">Cancel</button>
+        <button class="btn primary" id="m-save" data-i18n="save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="spokenTime.js"></script>
+  <script src="tts.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => { /* offline caching just won't be available */ });
+      });
+    }
+  </script>
+</body>
+</html>
